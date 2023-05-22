@@ -1,0 +1,161 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Controllers\Controller;
+use App\Http\Controllers\AgentController;
+use App\Models\Agent;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use Tymon\JWTAuth\Facades\JWTAuth;
+use Tymon\JWTAuth\Exceptions\JWTException;
+
+
+
+class AuthController extends Controller
+{
+    /**
+     * Create a new AuthController instance.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        $this->middleware('auth:api', ['except' => ['login', 'register', 'me']]);
+    }
+
+    /**
+     * Get a JWT via given credentials.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function login(Request $request)
+    {
+        $credentials = $request->only(['agentUser', 'password']);
+
+        if (!$token = auth()->attempt($credentials)) {
+            return response()->json(['error' => 'Agent unauthorized or password invalid'], 401);
+        }
+
+        // Asignar el token al agente
+        $agent = Agent::where('agentUser', $credentials['agentUser'])->first();
+        $agent->agentToken = $token;
+        $agent->agentStatus = 'online';
+        $agent->save();
+
+        return $this->respondWithToken($token);
+    }
+
+
+    /**
+     * Get the authenticated User.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function me()
+    {
+        return response()->json(auth()->user());
+    }
+
+    /**
+     * Log the user out (Invalidate the token).
+     * En el request obtendra el agentUser que se deslogueara, para asi actualizar el estado del agente y borrar el token
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * 
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function logout(Request $request)
+    {
+        $hasBearer = $request->headers->has('Authorization');
+
+        if (!$hasBearer) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $authorizationHeader = $request->headers->get('Authorization');
+        $token = str_replace('Bearer ', '', $authorizationHeader);
+
+        if (!$token) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        auth()->logout();
+
+        $agent = Agent::where('agentUser', $request->agentUser)->first();
+        $agent->agentToken = '';
+        $agent->agentStatus = 'offline';
+        $agent->save();
+
+        return response()->json(['message' => 'Agent successfully logged out']);
+    }
+
+
+    /**
+     * Refresh a token.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function refresh()
+    {
+        return $this->respondWithToken(auth()->refresh());
+    }
+
+    /**
+     * Get the token array structure.
+     *
+     * @param  string $token
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    protected function respondWithToken($token)
+    {
+        return response()->json([
+            'access_token' => $token,
+            'token_type' => 'bearer',
+            'expires_in' => auth()->factory()->getTTL() * 60 * 10 // 10 hours
+        ]);
+    }
+
+    /**
+     * Register a new userAgent.
+     * 
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function register(Request $request)
+    {
+        $agentController = new AgentController();
+
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|string|email|unique:agents',
+            'password' => 'required|string|min:6|confirmed',
+            'password_confirmation' => 'required',
+            'name' => 'required|string',
+            'operation' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        $agent = Agent::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => bcrypt($request->password),
+            'operation' => $request->operation,
+            'agentUser' => $agentController->creategentUser(),
+            'agentToken' => '',
+            'agentStatus' => 'offline',
+        ]);
+
+        $token = JWTAuth::fromUser($agent); // Generar el token para el agente y guardarlo en la base de datos
+
+        // Asignar el token al agente recién creado
+        $agent->agentToken = $token;
+        $agent->save();
+
+        return $this->respondWithToken($token);
+    }
+}
