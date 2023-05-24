@@ -35,7 +35,13 @@ class AuthController extends Controller
         $credentials = $request->only(['agentUser', 'password']);
 
         if (!$token = auth()->attempt($credentials)) {
-            return response()->json(['error' => 'Agent unauthorized or password invalid'], 401);
+            return response()->json(
+                [
+                    'status' => 'error',
+                    'message' => 'Agent unauthorized or password invalid',
+                ],
+                401
+            );
         }
 
         // Asignar el token al agente
@@ -44,7 +50,8 @@ class AuthController extends Controller
         $agent->agentStatus = 'online';
         $agent->save();
 
-        return $this->respondWithToken($token);
+        $message = 'Agent logged in successfully';
+        return $this->respondWithToken($token, null, $message);
     }
 
 
@@ -55,6 +62,15 @@ class AuthController extends Controller
      */
     public function me()
     {
+
+        $response = auth()->user();
+        if (!$response) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Agent unauthorized or token invalid'
+            ], 401);
+        }
+
         return response()->json(auth()->user());
     }
 
@@ -106,17 +122,41 @@ class AuthController extends Controller
      * Get the token array structure.
      *
      * @param  string $token
+     * @param  string $agent
      *
      * @return \Illuminate\Http\JsonResponse
      */
-    protected function respondWithToken($token)
+    protected function respondWithToken($token, $agent = null, $message = null)
     {
-        return response()->json([
-            'access_token' => $token,
-            'token_type' => 'bearer',
-            'expires_in' => auth()->factory()->getTTL() * 60 * 10 // 10 hours
-        ]);
+        if (!$agent) {
+            $agent = auth()->user();
+            return response()->json([
+                'status' => 'success',
+                'message' => $message,
+                'data' => [
+                    'access_token' => $token,
+                    'token_type' => 'bearer',
+                    'expires_in' => auth()->factory()->getTTL() * 60 * 10, // 10 hours
+                    'name' => $agent->name,
+                    'email' => $agent->email,
+                    'operation' => $agent->operation,
+                    'agentUser' => $agent->agentUser,
+                    'agentStatus' => $agent->agentStatus,
+                ]
+            ]);
+        } else {
+            return response()->json([
+                'status' => 'success',
+                'message' => $message,
+                'data' => [
+                    'access_token' => $token,
+                    'token_type' => 'bearer',
+                    'expires_in' => auth()->factory()->getTTL() * 60 * 10, // 10 hours
+                ]
+            ]);
+        }
     }
+
 
     /**
      * Register a new userAgent.
@@ -137,7 +177,14 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+            return response()->json(
+                [
+                    'status' => 'error',
+                    'message' => 'Invalid data provided',
+                    'errors' => $validator->errors()
+                ],
+                422
+            );
         }
 
         $agent = Agent::create([
@@ -156,6 +203,8 @@ class AuthController extends Controller
         $agent->agentToken = $token;
         $agent->save();
 
-        return $this->respondWithToken($token);
+        $message = 'User registered successfully';
+
+        return $this->respondWithToken($token, $agent, $message);
     }
 }

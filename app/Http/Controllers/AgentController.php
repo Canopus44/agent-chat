@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Agent;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class AgentController extends Controller
 {
@@ -14,7 +15,8 @@ class AgentController extends Controller
      */
     public function index()
     {
-        //
+        $agents = Agent::all();
+        return response()->json($agents, 200);
     }
 
     /**
@@ -46,7 +48,7 @@ class AgentController extends Controller
      */
     public function show(Agent $agent)
     {
-        //
+        return response()->json($agent, 200);
     }
 
     /**
@@ -67,9 +69,59 @@ class AgentController extends Controller
      * @param  \App\Models\Agent  $agent
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, Agent $agent)
+    public function update(Request $request, $id)
     {
-        //
+        $agent = Agent::where('agentUser', $id)->first();
+
+        if (!$agent) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Agent not found'
+            ], 404);
+        }
+
+        // Validamos los datos
+
+        if ($request->email != $agent->email) {
+            $validator = Validator::make($request->all(), [
+                'email' => 'unique:agents',
+            ]);
+
+            if ($validator->fails()) {
+                $errors = $validator->errors();
+
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid data provided',
+                    'errors' => $errors
+                ], 422);
+            }
+        }
+
+
+        if ($request->name) {
+            $agent->name = $request->name;
+        }
+
+        if ($request->email) {
+            $agent->email = $request->email;
+        }
+
+        if ($request->password) {
+            $agent->password = bcrypt($request->password);
+        }
+
+        if ($request->agentStatus) {
+            $agent->agentStatus = $request->agentStatus;
+        }
+
+
+        $agent->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Agent updated successfully'
+        ], 200);
     }
 
     /**
@@ -80,7 +132,12 @@ class AgentController extends Controller
      */
     public function destroy(Agent $agent)
     {
-        //
+        // Eliminamos el agente de la base de datos
+        $agent->delete();
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Agent deleted successfully'
+        ], 200);
     }
 
     /**
@@ -111,5 +168,18 @@ class AgentController extends Controller
             $agentUser .= $characters[rand(0, $charactersLength - 1)];
         }
         return $agentUser;
+    }
+
+    public function delete($id)
+    {
+        $agent = Agent::where('agentUser', $id)->first();
+
+        if (!$agent) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Agent not found'
+            ], 404);
+        }
+        return $this->destroy($agent);
     }
 }
