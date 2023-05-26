@@ -9,7 +9,7 @@ use App\Models\Agent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
-use Tymon\JWTAuth\Exceptions\JWTException;
+
 
 
 
@@ -134,6 +134,7 @@ class AuthController extends Controller
                 'status' => 'success',
                 'message' => $message,
                 'data' => [
+                    'id' => $agent->_id,
                     'access_token' => $token,
                     'token_type' => 'bearer',
                     'expires_in' => auth()->factory()->getTTL() * 60 * 10, // 10 hours
@@ -195,6 +196,10 @@ class AuthController extends Controller
             'agentUser' => $agentController->creategentUser(),
             'agentToken' => '',
             'agentStatus' => 'offline',
+            'skills' => [],
+            'capacity' => 0,
+            'busy' => false,           
+
         ]);
 
         $token = JWTAuth::fromUser($agent); // Generar el token para el agente y guardarlo en la base de datos

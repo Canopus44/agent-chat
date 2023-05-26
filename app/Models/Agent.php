@@ -20,7 +20,6 @@ class Agent extends Authenticatable implements JWTSubject
         'agentUser',
         'agentToken',
         'agentStatus',
-
     ];
 
     /**

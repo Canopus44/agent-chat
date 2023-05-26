@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AgentController;
+use App\Http\Controllers\ConversationController;
 
 
 /*
@@ -26,6 +27,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
  * Rutas API Agent
  */
 
+//  Group auth
 Route::group(
     [
         'middleware' => 'api',
@@ -41,7 +43,7 @@ Route::group(
     }
 );
 
-
+// Group agent
 Route::group(
     [
         'middleware' => 'api',
@@ -53,5 +55,26 @@ Route::group(
         Route::get('show/{id}', [AgentController::class, 'show']);
         Route::put('update/{id}', [AgentController::class, 'update']);
         Route::delete('delete/{id}', [AgentController::class, 'delete']);
+    }
+);
+
+
+/**
+ * Rutas API Conversation
+ */
+// Group conversation
+
+Route::group(
+    [
+        'middleware' => 'api',
+        'prefix' => 'conversation'
+    ],
+    function ($router) {
+
+        Route::get('index', [ConversationController::class, 'index']);
+        Route::get('showByAgent/{agent_id}', [ConversationController::class, 'showByAgent']);
+        Route::get('showMessagesByConversation/{session_chat}', [ConversationController::class, 'showMessagesByConversation']);
+        Route::put('update/{id}', [ConversationController::class, 'update']);
+        Route::delete('delete/{id}', [ConversationController::class, 'delete']);
     }
 );
